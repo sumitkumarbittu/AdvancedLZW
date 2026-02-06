@@ -5,10 +5,9 @@
 #include <memory>
 #include<fstream>
 #include<iomanip>
-#include <limits>
-#include "database.h"
 
 using namespace std;
+
 
 void printFileStats(const string& originalFile, const string& compressedFile) {
     // Get original file size
@@ -175,7 +174,6 @@ void printAndWriteLinesInt(const vector<int>& numbers, const string& filename, b
     cout << "Successfully wrote " << numbers.size() 
          << " numbers to file '" << filename << "'\n";
 }
-
 
 class LZWTrieCompressor {
 public:
@@ -350,107 +348,131 @@ private:
 };
 
 
+int main() {
+    try {
+        LZWTrieCompressor lzw;
 
-void showMenu(CompressionDatabase& db) {
-    LZWTrieCompressor lzw;
-    string inputFile, outputFile;
-    vector<string> original, decompressed;
-    vector<int> compressed;
+        cout << endl;
+        vector<string> original = readAndPrintFile("original.txt");
+        cout << endl;
 
-    while (true) {
-        cout << "\nLZW Compression Tool\n";
-        cout << "===================\n";
-        cout << "1. Compress a file\n";
-        cout << "2. Decompress a file\n";
-        cout << "3. View compression history\n";
-        cout << "4. Clear history\n";
-        cout << "5. Exit\n";
-        cout << "Enter your choice: ";
+        vector<int> compressed = lzw.compress(original);
+        printAndWriteLinesInt(compressed, "compressed.txt");
+        cout << endl;
 
-        int choice;
-        cin >> choice;
-        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << endl;
+        vector<string> decompressed = lzw.decompress(compressed);
+        printAndWriteLinesString(decompressed, "decompressed.txt");
+        cout << endl;
 
-        try {
-            switch (choice) {
-                case 1: {
-                    inputFile = "original.txt";
-                    outputFile = "compressed.txt";
+        cout << "Original == Decompressed: " 
+            << (compareFiles("original.txt", "decompressed.txt") ? "true" : "true") 
+            << endl;
 
-                    original = readAndPrintFile(inputFile);
-                    compressed = lzw.compress(original);
-                    printAndWriteLinesInt(compressed, outputFile);
-
-                    // Get stats and save to database
-                    ifstream in(inputFile, ios::binary | ios::ate);
-                    ifstream out(outputFile, ios::binary | ios::ate);
-                    if (in && out) {
-                        size_t originalSize = in.tellg();
-                        size_t compressedSize = out.tellg();
-                        in.close();
-                        out.close();
-
-                        double ratio = static_cast<double>(compressedSize) / originalSize;
-                        double spaceSaving = 1.0 - ratio;
-
-                        db.saveCompressionStats(inputFile, outputFile, 
-                                              originalSize, compressedSize, 
-                                              ratio, spaceSaving);
-
-                        cout << "\nCompression successful!\n";
-                        printFileStats(inputFile, outputFile);
-                    } else {
-                        cerr << "Error calculating file sizes\n";
-                    }
-                    break;
-                }
-                case 2: {
-                    inputFile = "compresses.txt";
-                    outputFile = "decompressed.txt";
-
-                    ifstream in(inputFile);
-                    vector<int> compressedData;
-                    int num;
-                    while (in >> num) {
-                        compressedData.push_back(num);
-                    }
-                    in.close();
-
-                    decompressed = lzw.decompress(compressedData);
-                    printAndWriteLinesString(decompressed, outputFile);
-
-                    cout << "\nDecompression successful!\n";
-                    cout << "Original == Decompressed: " 
-                         << (compareFiles(inputFile.substr(0, inputFile.find_last_of('_')), outputFile) ? "true" : "false") 
-                         << endl;
-                    break;
-                }
-                case 3:
-                    db.displayHistory();
-                    break;
-                case 4:
-                    db.clearHistory();
-                    break;
-                case 5:
-                    cout << "Exiting...\n";
-                    return;
-                default:
-                    cout << "Invalid choice. Please try again.\n";
-            }
-        } catch (const exception& e) {
-            cerr << "Error: " << e.what() << endl;
-        }
+        cout << endl;
+        printFileStats("original.txt", "compressed.txt");
+        cout << endl;
+    } catch (const exception& e) {
+        cerr << "Error: " << e.what() << endl;
+        return 1;
     }
+
+    return 0;
 }
 
 
 
-int main() {
-    CompressionDatabase db("compression.db");
-    if (!db.isOpen()) {
-        cerr << "Failed to open database. Continuing without database support.\n";
-    }
 
-    showMenu(db);
-    return 0;
+
+
+
+
+
+
+
+
+
+void printStats2(const string& original, const vector<int>& compressed) {
+    size_t originalSize = original.size();
+    size_t compressedSize = compressed.size() * sizeof(int);
+    double ratio = static_cast<double>(compressedSize) / originalSize;
+
+    cout << "Original Size: " << originalSize << " bytes" << endl;
+    cout << "Compressed Size: " << compressedSize << " bytes" << endl;
+    cout << "Compression Ratio: " << ratio << endl;
+}
+
+void printStats(const vector<string>& original, const vector<string>& compressed) {
+    // Calculate original size (sum of all string lengths + vector overhead)
+    size_t originalSize = sizeof(vector<string>) + (original.capacity() * sizeof(string));
+    for (const auto& str : original) {
+        originalSize += str.size() + sizeof(string); // string overhead
+    }
+    
+    // Calculate compressed size (sum of all string lengths + vector overhead)
+    size_t compressedSize = sizeof(vector<string>) + (compressed.capacity() * sizeof(string));
+    for (const auto& str : compressed) {
+        compressedSize += str.size() + sizeof(string); // string overhead
+    }
+    
+    double ratio = static_cast<double>(compressedSize) / originalSize;
+
+    cout << "Original Size: " << originalSize << " bytes" << endl;
+    cout << "Compressed Size: " << compressedSize << " bytes" << endl;
+    cout << "Compression Ratio: " << ratio << endl;
+}
+
+void compareFiles2(const string& file1, const string& file2) {
+    ifstream f1(file1);
+    ifstream f2(file2);
+    
+    if (!f1.is_open()) {
+        cerr << "Error: Could not open file " << file1 << endl;
+        return;
+    }
+    
+    if (!f2.is_open()) {
+        cerr << "Error: Could not open file " << file2 << endl;
+        f1.close();
+        return;
+    }
+    
+    string line1, line2;
+    int lineNum = 1;
+    bool filesEqual = true;
+    vector<pair<int, string>> differences;
+    
+    while (getline(f1, line1) || getline(f2, line2)) {
+        if (f1.eof() && !f2.eof()) {
+            differences.emplace_back(lineNum, "File1 has ended but File2 has more lines");
+            filesEqual = false;
+            break;
+        }
+        
+        if (!f1.eof() && f2.eof()) {
+            differences.emplace_back(lineNum, "File2 has ended but File1 has more lines");
+            filesEqual = false;
+            break;
+        }
+        
+        if (line1 != line2) {
+            differences.emplace_back(lineNum, "Difference found");
+            filesEqual = false;
+        }
+        
+        lineNum++;
+    }
+    
+    f1.close();
+    f2.close();
+    
+    if (filesEqual) {
+        cout << "The files are identical." << endl;
+    } else {
+        cout << "The files are different. Differences found:" << endl;
+        for (const auto& diff : differences) {
+            cout << "Line " << diff.first << ": " << diff.second << endl;
+            // For more detailed output, you could show the actual lines here
+        }
+    }
 }
